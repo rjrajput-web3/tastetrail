@@ -226,7 +226,7 @@ class handler(BaseHTTPRequestHandler):
             self._send(200, result)
         except QlooError as e:
             msg = str(e)
-          print("QLOO_ERROR:", msg, flush=True)
+            print("QLOO_ERROR:", msg, flush=True)
             if msg == "missing_api_key":
                 self._send(500, {"error": "server misconfigured"})
             elif msg == "unknown_city":
