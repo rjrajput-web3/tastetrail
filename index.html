@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TasteTrail — Trips matched to your taste</title>
+<style>
+  :root { --bg:#0f1115; --card:#171b22; --ink:#f2f4f8; --mut:#9aa3b2; --acc:#7c5cff; --acc2:#00d4a4; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:56px 20px 30px; text-align:center; }
+  header h1 { margin:0 0 8px; font-size:2.4rem; letter-spacing:-.5px; }
+  header h1 span { color:var(--acc2); }
+  header p { color:var(--mut); max-width:560px; margin:0 auto; line-height:1.6; }
+  .bar { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; padding:10px 20px 30px; }
+  input { background:var(--card); border:1px solid #2a3140; color:var(--ink); border-radius:12px; padding:14px 16px; font-size:1rem; width:min(300px,90vw); }
+  input:focus { outline:none; border-color:var(--acc); }
+  button { background:linear-gradient(135deg,var(--acc),var(--acc2)); color:#fff; border:0; border-radius:12px; padding:14px 26px; font-size:1rem; font-weight:700; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:wait; }
+  #status { text-align:center; color:var(--mut); min-height:1.6em; padding:0 20px; }
+  main { max-width:1080px; margin:0 auto; padding:10px 20px 60px; }
+  h2.sec { margin:34px 0 6px; font-size:1.25rem; }
+  p.sub { color:var(--mut); margin:0 0 14px; font-size:.95rem; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid #232a38; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+  .card img { width:100%; height:140px; object-fit:cover; background:#232a38; }
+  .card .body { padding:14px; }
+  .card h3 { margin:0 0 6px; font-size:1.02rem; }
+  .card p { margin:0 0 8px; color:var(--mut); font-size:.88rem; line-height:1.5; }
+  .card .why { font-size:.8rem; color:var(--acc2); }
+  .pill { display:inline-block; font-size:.72rem; background:#232a38; border-radius:999px; padding:3px 10px; color:var(--mut); margin-bottom:8px; }
+  footer { text-align:center; color:var(--mut); font-size:.8rem; padding:30px 20px; border-top:1px solid #1c222d; }
+  footer a { color:var(--acc2); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Taste<span>Trail</span></h1>
+  <p>An agentic trip planner powered by the <b>Qloo Taste AI</b> cultural graph.
+  Tell it a city and what you love — the agent resolves your taste into tags,
+  queries live cultural affinities, and curates your day.</p>
+</header>
+<div class="bar">
+  <input id="city" placeholder="City — e.g. Chandigarh" value="Chandigarh">
+  <input id="interests" placeholder="Interests — e.g. street food, indie music, art" value="street food, indie music, art">
+  <button id="go" onclick="plan()">Plan my trip</button>
+</div>
+<div id="status"></div>
+<main id="out"></main>
+<footer>
+  Built for the Qloo Agentic Hackathon · Taste AI by <a href="https://qloo.com" target="_blank" rel="noopener">Qloo</a> ·
+  <a href="https://github.com/rjrajput-web3/tastetrail" target="_blank" rel="noopener">Source</a>
+</footer>
+<script>
+const TIMES = [["morning","Morning fuel"],["afternoon","Afternoon exploring"],["evening","Evening unwind"],["night","Night out"]];
+async function plan(){
+  const city = document.getElementById('city').value.trim();
+  const interests = document.getElementById('interests').value.trim();
+  const out = document.getElementById('out'), st = document.getElementById('status'), btn = document.getElementById('go');
+  if(!city){ st.textContent = "Please enter a city."; return; }
+  btn.disabled = true; st.textContent = "Agent working — resolving taste tags, querying the cultural graph…";
+  out.innerHTML = "";
+  try{
+    const r = await fetch('/api/plan', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ city, interests }) });
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error || 'request failed');
+    st.textContent = "";
+    let html = `<h2 class="sec">Your day in ${esc(d.city)}</h2><p class="sub">Curated from ${d.taste_tags_used} taste signals via Qloo Taste AI.</p>`;
+    for(const [k,label] of TIMES){
+      const items = (d.day_plan && d.day_plan[k]) || [];
+      if(!items.length) continue;
+      html += `<h2 class="sec">${label}</h2><div class="grid">` + items.map(card).join('') + `</div>`;
+    }
+    if(d.day_trips && d.day_trips.length){
+      html += `<h2 class="sec">Day-trip ideas</h2><p class="sub">Destinations whose taste profile overlaps yours.</p><div class="grid">` + d.day_trips.map(card).join('') + `</div>`;
+    }
+    if(d.soundtrack && d.soundtrack.length){
+      html += `<h2 class="sec">Trip soundtrack</h2><p class="sub">Artists the taste graph links to your interests.</p><div class="grid">` + d.soundtrack.map(card).join('') + `</div>`;
+    }
+    out.innerHTML = html;
+  }catch(e){
+    st.textContent = "Could not build the plan: " + e.message;
+  }
+  btn.disabled = false;
+}
+function card(p){
+  return `<div class="card">${p.image?`<img src="${esc(p.image)}" alt="" loading="lazy">`:''}<div class="body">`+
+    `<h3>${esc(p.name)}</h3>${p.description?`<p>${esc(p.description)}</p>`:''}`+
+    (p.why?`<div class="why">${esc(p.why)}</div>`:'')+`</div></div>`;
+}
+function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+</script>
+</body>
+</html>
